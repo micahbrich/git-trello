@@ -58,7 +58,10 @@ Once you're all set up, inside our `wdi` folder, just type:
 $ git trello https://trello.com/c/BoScVvVA/209-intro-to-ruby-data-types-variables
 ```
 
-Running that without any arguments will warn you that you need a URL. Running that with a URL that isn't a Trello card will warn you that you need a valid URL. Running it in a repo that isn't our `wdi` repo will also warn you that you're not in the right repo.
+- Running that without any arguments will warn you that you need a URL. 
+- Running that with a URL that isn't a Trello card will warn you that you need a valid URL. 
+- Running it in a repo that isn't our `wdi` repo will also warn you that you're not in the right repo.
+- If for some reason you're running it from a branch other than `master`, it'll checkout `master` first (but not stash any changes, so keep that in mind)
 
 That's really it. I just figured the labor of creating branches & folders and manually copy & pasting from Trello & our templates could be probably be done better with a little script.
 
