@@ -55,7 +55,7 @@ If your `~/.trellorc` is filled out, it should be all set.
 Once you're all done, it'll tell you the real command:
 
 ```
-$ git trello <trello card url>
+$ git trello https://trello.com/c/BoScVvVA/209-intro-to-ruby-data-types-variables
 ```
 
 Running that without any arguments will warn you that you need a URL. Running that with a URL that isn't a Trello card will warn you that you need a valid URL. Running it in a repo that isn't our `wdi` repo will also warn you that you're not in the right repo.
