@@ -52,7 +52,7 @@ If your `~/.trellorc` is filled out, it should be all set.
 
 ## Usage
 
-Once you're all done, it'll tell you the real command:
+Once you're all set up, inside our `wdi` folder, just type:
 
 ```
 $ git trello https://trello.com/c/BoScVvVA/209-intro-to-ruby-data-types-variables
