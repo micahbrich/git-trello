@@ -1,0 +1,111 @@
+#!/usr/bin/env ruby
+
+# requires https://github.com/jeremytregunna/ruby-trello
+# gem install ruby-trello
+
+#
+# Authorize trello, follow these steps:
+#
+# 1. visit https://trello.com/app-key, copy & paste key & secret into ~/.trellorc in the format below
+# 2. visit https://trello.com/1/authorize?key=b4dc5a60306950190babfa10d85ea7d6&response_type=token&scope=read,write&expiration=never&name=Baseline Git Tool
+# 3. copy & paste token it gives back into format below
+#
+
+# trello credentials go in ~/.trellorc in the following format:
+#
+# - name: Baseline Git Tool
+#   key: <key>
+#   secret: <secret>
+#   token: <token>
+
+
+require 'fileutils'
+require 'trello'
+require 'yaml'
+
+class String
+  def to_slug
+    self.downcase.strip.gsub('&','and').gsub('*','star').gsub(' ', '-').gsub(/[^\w-]/, '').gsub(/\-+/, '-')
+  end
+end
+
+@config = YAML.load_file(File.expand_path "~/.trellorc") || {}
+
+Trello.configure do |config|
+  config.developer_public_key = @config[0]['key']
+  config.member_token = @config[0]['token']
+end
+
+puts 'You need to supply a Trello card URL!' unless ARGV[0]
+
+url = ARGV[0]
+id = url.match(/https\:\/\/trello\.com\/c\/(.+)\/.+/)[1]
+card = Trello::Card.find(id)
+
+types = ['Lesson', 'Lab', 'After Hours', 'Homework']
+
+name = card.name
+type = card.card_labels.select {|l| types.include? l['name'] }[0]['name']
+labels = card.card_labels.delete_if {|l| types.include? l['name'] }
+competencies = labels.map { |l| l['name'].gsub(/\d* \- /, '')  }
+objectives = card.checklists.first.items.map(&:name)
+objectives_as_list = objectives.map { |o| "- #{o}"  }.join("\n")
+
+## CREATE & CHECKOUT GIT BRANCH
+
+branch = [name, type].join('-').to_slug
+current_branch = `git rev-parse --abbrev-ref HEAD`.squish
+exists = `git branch --list #{branch}`.squish == branch
+if exists
+  `git checkout #{branch}`
+else
+  `git checkout master` unless current_branch == 'master'
+  `git checkout -b #{branch}`
+end
+
+
+## FOLDER CREATION
+
+# main folder
+folder = card.card_labels.map {|l| l['name'] }.join('-').to_slug
+path = File.join("curriculum", "baseline", folder, branch)
+FileUtils.mkdir_p path
+puts "Creating new folders in #{path}"
+
+# starter-code folder
+starter_code_folder = File.join("curriculum", "baseline", folder, branch, 'starter-code')
+puts "├── /starter-code"
+FileUtils.mkdir_p starter_code_folder
+
+# starter-code folder
+solution_code_folder = File.join("curriculum", "baseline", folder, branch, 'solution-code')
+puts "├── /solution-code"
+FileUtils.mkdir_p solution_code_folder
+
+`open #{path}`
+
+## COPY README TEMPLATE
+
+template = File.join("curriculum", "template-#{type.to_slug}.md")
+FileUtils.cp template, "#{path}/readme.md"
+puts "└── readme.md"
+
+
+## MODIFY README TEMPLATE
+
+filename = File.expand_path "#{path}/readme.md"
+readme = File.read(filename)
+readme = readme.gsub(/title: (.+)/, "title: #{name}")
+readme = readme.gsub(/competencies: (.+)/, "competencies: #{competencies.join(', ')}")
+readme = readme.gsub(/^\#{1} (.+)/, "# #{name}")
+
+# for labs
+readme = readme.gsub(/(\#\#\#\# Requirements.^.^).+.^\*\*.+(^.#### Starter code)/m, "\1#{objectives_as_list}\n\n#### Starter Code")
+
+# for lessons
+readme = readme.gsub(/(\*After this lesson, students will be able to:\*.^.).+(.^\#\#\# Preparation)/m, "\1\n#{objectives_as_list}\n\n### Preparation\n")
+
+File.open(filename, "w") { |file| file << readme }
+puts "Updated readme.md with Trello title & objectives"
+
+`open #{filename}`
