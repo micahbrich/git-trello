@@ -7,7 +7,7 @@
 # Authorize trello, follow these steps:
 #
 # 1. visit https://trello.com/app-key, copy & paste key & secret into ~/.trellorc in the format below
-# 2. visit https://trello.com/1/authorize?key=b4dc5a60306950190babfa10d85ea7d6&response_type=token&scope=read,write&expiration=never&name=Baseline Git Tool
+# 2. visit https://trello.com/1/authorize?key=APPKEY&response_type=token&scope=read,write&expiration=never&name=Baseline Git Tool
 # 3. copy & paste token it gives back into format below
 #
 
@@ -22,90 +22,233 @@
 require 'fileutils'
 require 'trello'
 require 'yaml'
+require 'uri'
+
+# - - - -
 
 class String
   def to_slug
-    self.downcase.strip.gsub('&','and').gsub('*','star').gsub(' ', '-').gsub(/[^\w-]/, '').gsub(/\-+/, '-')
+    self.downcase.strip.gsub('&','and').gsub('*','star').gsub(' ', '-').gsub(/[^\w-]/, '').gsub(/\-+/, '-').chomp("-")
+  end
+
+  def is_valid_url?
+      uri = URI.parse self
+      valid_scheme = uri.kind_of?(URI::HTTP) || uri.kind_of?(URI::HTTPS)
+      valid_host = (uri.host == 'trello.com') && (uri.path.start_with? '/c/')
+      valid_scheme && valid_host
+  rescue URI::InvalidURIError
+      false
+  end
+
+end
+
+# - - - -
+
+def display_help
+  puts "\n      USAGE:\n"
+  puts "        git trello setup - set up Trello account" unless configure_trello
+  puts "        git trello <card url> - fetch card, create branch & files\n\n"
+end
+
+def create_config
+  filename = File.expand_path "~/.trellorc"
+  if !File.exist?(filename) || File.zero?(filename)
+    File.open(filename, 'w') do |file|
+      file << %q{- name: Baseline Git Tool
+  key: '<key>'
+  secret: '<secret>'
+  token: '<token>'
+}
+    end
+  end
+puts %q{
+  To authorize trello, follow these steps:
+
+  1. visit https://trello.com/app-key, copy & paste key & secret into ~/.trellorc in the format below
+  2. visit https://trello.com/1/authorize?key=APPKEY&response_type=token&scope=read,write&expiration=never&name=Baseline Git Tool
+  3. copy & paste token it gives back into format below
+
+}
+  `open #{filename}`
+end
+
+def configure_trello
+  Trello.configure do |config|
+    config.developer_public_key = @config[0]['key']
+    config.member_token = @config[0]['token']
   end
 end
 
-@config = YAML.load_file(File.expand_path "~/.trellorc") || {}
 
-Trello.configure do |config|
-  config.developer_public_key = @config[0]['key']
-  config.member_token = @config[0]['token']
+# IF IT WORKS
+
+def url
+  url = ARGV[0]
 end
 
-puts 'You need to supply a Trello card URL!' unless ARGV[0]
+def card
+  id = url.match(/https\:\/\/trello\.com\/c\/(.+)\/.+/)[1]
+  @card ||= Trello::Card.find(id)
+end
 
-url = ARGV[0]
-id = url.match(/https\:\/\/trello\.com\/c\/(.+)\/.+/)[1]
-card = Trello::Card.find(id)
+def types
+  ['Lesson', 'Lab', 'After Hours', 'Homework']
+end
 
-types = ['Lesson', 'Lab', 'After Hours', 'Homework']
+def name
+  @name ||= card.name.gsub(type, '')
+end
+def type
+  @type ||= card.card_labels.select {|l| types.include? l['name'] }[0]['name']
+end
+def labels
+  @labels ||= card.card_labels.delete_if {|l| types.include? l['name'] }
+end
+def competencies
+  @competencies ||= labels.map { |l| l['name'].gsub(/\d* \- /, '')  }
+end
+def objectives
+  @objectives ||= card.checklists.first.items.map(&:name)
+end
+def objectives_as_list
+  @objectives_as_list ||= objectives.map { |o| "- #{o}"  }.join("\n")
+end
+def branch
+  @branch = [name, type].join('-').to_slug
+end
 
-name = card.name
-type = card.card_labels.select {|l| types.include? l['name'] }[0]['name']
-labels = card.card_labels.delete_if {|l| types.include? l['name'] }
-competencies = labels.map { |l| l['name'].gsub(/\d* \- /, '')  }
-objectives = card.checklists.first.items.map(&:name)
-objectives_as_list = objectives.map { |o| "- #{o}"  }.join("\n")
+def check_current_repo
+  remote = `git config --get remote.origin.url`
+  unless remote.include?('generalassembly') && remote.include?('wdi')
+    puts "Uhoh, you might be in the wrong repo. Navigate to your wdi repo!"
+    exit
+  end
+end
+
+def current_branch
+  current_branch = `git rev-parse --abbrev-ref HEAD`.squish
+end
 
 ## CREATE & CHECKOUT GIT BRANCH
-
-branch = [name, type].join('-').to_slug
-current_branch = `git rev-parse --abbrev-ref HEAD`.squish
-exists = `git branch --list #{branch}`.squish == branch
-if exists
-  `git checkout #{branch}`
-else
-  `git checkout master` unless current_branch == 'master'
-  `git checkout -b #{branch}`
+def create_branch
+  check_current_repo
+  exists = `git branch --list #{branch}`.squish == branch
+  if exists
+    `git checkout #{branch}`
+  else
+    `git checkout master` unless current_branch == 'master'
+    `git checkout -b #{branch}`
+  end
 end
-
 
 ## FOLDER CREATION
 
-# main folder
-folder = card.card_labels.map {|l| l['name'] }.join('-').to_slug
-path = File.join("curriculum", "baseline", folder, branch)
-FileUtils.mkdir_p path
-puts "Creating new folders in #{path}"
+def path
+  @path ||= File.join("curriculum", "baseline", folder, branch)
+end
 
-# starter-code folder
-starter_code_folder = File.join("curriculum", "baseline", folder, branch, 'starter-code')
-puts "├── /starter-code"
-FileUtils.mkdir_p starter_code_folder
+def folder
+  @folder ||= labels.map {|l| l['name'] }.join('-').to_slug
+end
 
-# starter-code folder
-solution_code_folder = File.join("curriculum", "baseline", folder, branch, 'solution-code')
-puts "├── /solution-code"
-FileUtils.mkdir_p solution_code_folder
+def create_folders
+  create_main_folder
+  create_starter_code_folder
+  create_solution_code_folder
+  `open #{path}`
+end
 
-`open #{path}`
+def create_main_folder
+  # main folder
+  FileUtils.mkdir_p path
+  puts "Creating new folders in #{path}"
+end
+
+def starter_code_folder
+  @starter_code_folder ||= File.join("curriculum", "baseline", folder, branch, 'starter-code')
+end
+
+def create_starter_code_folder
+  # starter-code folder
+  puts "├── /starter-code"
+  FileUtils.mkdir_p starter_code_folder
+end
+
+def solution_code_folder
+  @solution_code_folder ||= File.join("curriculum", "baseline", folder, branch, 'solution-code')
+end
+
+def create_solution_code_folder
+  # solution-code folder
+  puts "├── /solution-code"
+  FileUtils.mkdir_p solution_code_folder
+end
+
 
 ## COPY README TEMPLATE
+def template
+  @template ||= File.join("curriculum", "template-#{type.to_slug}.md")
+end
 
-template = File.join("curriculum", "template-#{type.to_slug}.md")
-FileUtils.cp template, "#{path}/readme.md"
-puts "└── readme.md"
+def copy_readme
+  FileUtils.cp template, "#{path}/readme.md"
+  puts "└── readme.md"
+end
 
 
 ## MODIFY README TEMPLATE
+def modify_readme
+  filename = File.expand_path "#{path}/readme.md"
+  readme = File.read(filename)
+  readme = readme.gsub(/title: (.+)/, "title: #{name}")
+  readme = readme.gsub(/competencies: (.+)/, "competencies: #{competencies.join(', ')}")
+  readme = readme.gsub(/^\#{1} (.+)/, "# #{name}")
 
-filename = File.expand_path "#{path}/readme.md"
-readme = File.read(filename)
-readme = readme.gsub(/title: (.+)/, "title: #{name}")
-readme = readme.gsub(/competencies: (.+)/, "competencies: #{competencies.join(', ')}")
-readme = readme.gsub(/^\#{1} (.+)/, "# #{name}")
+  # for labs
+  readme = readme.gsub(/(\#\#\#\# Requirements.^.^).+.^\*\*.+(^.#### Starter code)/m, "\1#{objectives_as_list}\n\n#### Starter Code")
 
-# for labs
-readme = readme.gsub(/(\#\#\#\# Requirements.^.^).+.^\*\*.+(^.#### Starter code)/m, "\1#{objectives_as_list}\n\n#### Starter Code")
+  # for lessons
+  readme = readme.gsub(/(\*After this lesson, students will be able to:\*.^.).+(.^\#\#\# Preparation)/m, "\1\n#{objectives_as_list}\n\n### Preparation\n")
 
-# for lessons
-readme = readme.gsub(/(\*After this lesson, students will be able to:\*.^.).+(.^\#\#\# Preparation)/m, "\1\n#{objectives_as_list}\n\n### Preparation\n")
+  File.open(filename, "w") { |file| file << readme }
+  puts "Updated readme.md with Trello title & objectives"
 
-File.open(filename, "w") { |file| file << readme }
-puts "Updated readme.md with Trello title & objectives"
+  `open #{filename}`
+end
 
-`open #{filename}`
+def run
+  create_branch
+  create_folders
+  copy_readme
+  modify_readme
+end
+
+# - - - -
+
+begin
+  @config = YAML.load_file(File.expand_path "~/.trellorc") || {}
+  configure_trello
+rescue Exception => e
+  create_config
+end
+
+# - - - - - - - -
+
+case
+when ARGV.empty?
+  display_help
+when (ARGV[0] == '-h') || (ARGV[0] == '--help')
+  display_help
+when ARGV[0] == 'setup'
+  create_config if @config.empty?
+  puts "You're all set up!" if configure_trello
+when ARGV.count > 1
+  puts "Uh oh, you've got too many arguments."
+  display_help
+when ARGV[0].is_valid_url?
+  run
+when !ARGV[0].is_valid_url?
+  puts "Uh oh, that's not a valid Trello card URL! Try again?"
+else
+  display_help
+end

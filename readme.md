@@ -3,13 +3,23 @@
 
 This is just a tiny little git tool that will take a Trello card and craft a new branch & folder structure that mimicks our styleguide. It makes starting a new material go a bunch faster.
 
+It does the following for you:
+
+- **Creates and checks out a new branch** with a slugified version of the title + the type (lab/lesson/homework)
+- **Creates folders named after the lesson + type** in the appropriate core competency folder, based on Trello labels
+- **Creates `starter-code` and `solution-code` folders**, which will be ignored by git unless you put something in them
+- **Copies the appropriate lesson/lab template**, renames it `readme.md`
+- **Fills in the title, type, competencies, and learning objectives** in the `readme.md`
+
+![results](https://cloud.githubusercontent.com/assets/25366/8445587/f9ae1cdc-1f53-11e5-99fd-b80a37f688aa.png)
+
 ## Installation
 
 ```bash
-gem install ruby-trello
+gem install ruby-trello # this is a dependency to talk to the Trello API
 
-brew tap micahbrich/tap
-brew install git-trello
+brew tap micahbrich/tap # this loads my custom homebrew packages
+brew install git-trello # this installs the binary
 ```
 
 That's it.
@@ -18,7 +28,7 @@ That's it.
 
 It's an extension to git, though first we'll need to configure your Trello API keys & tokens. Make a `~/.trellorc` file, and we'll store some info in it.
 
-```
+```shell
 $ touch ~/.trellorc
 ```
 
@@ -51,20 +61,9 @@ $ git trello <trello card url>
 
 Running that without any arguments will warn you that you need a URL. 
 
-![results](https://cloud.githubusercontent.com/assets/25366/8445587/f9ae1cdc-1f53-11e5-99fd-b80a37f688aa.png)
+That's really it. Make sure you're in the WDI folder, it's pretty specifically intended for making new baseline materials.
 
-
-It does the following for you:
-
-- Creates and checks out a new branch with a slugified version of the title + the type (lab/lesson/homework)
-- Creates folders named after the lesson + type in the appropriate core competency folder, based on Trello labels
-- Creates `starter-code` and `solution-code` folders, which will be ignored by git unless you put something in them
-- Copies the appropriate lesson/lab template, renames it `readme.md`
-- Fills in the title, type, competencies, and learning objectives in the `readme.md`
-
-- - -
-
-Hopefully it's a little quicker just to get set up when you need to create a new resource. Booooom.
+But hopefully it's a little quicker just to get set up when you need to create a new resource. Booooom.
 
 ## Issues
 
