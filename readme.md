@@ -26,13 +26,12 @@ That's it.
 
 ## Trello Setup
 
-It's an extension to git, though first we'll need to configure your Trello API keys & tokens. Make a `~/.trellorc` file, and we'll store some info in it.
-
+We'll need to configure your Trello API keys & tokens. There's a command to get it started.
 ```shell
-$ touch ~/.trellorc
+$ git trello setup
 ```
 
-It'll end up a YAML file with no extension that looks like this:
+It'll create a `~/.trellorc` file for you, with the following format:
 
 ```yaml
 - name: Baseline Git Tool
@@ -41,7 +40,7 @@ It'll end up a YAML file with no extension that looks like this:
   token: <token>
 ```
 
-To fill those in & authorize Trello, follow these steps:
+It should also give you this exact instructions, but they're here, too – to authorize Trello, follow these steps:
 
 1. Visit https://trello.com/app-key, copy & paste key & secret into `~/.trellorc` in the format above
 2. Modify this url: 
@@ -59,11 +58,9 @@ Once you're all done, it'll tell you the real command:
 $ git trello <trello card url>
 ```
 
-Running that without any arguments will warn you that you need a URL. 
+Running that without any arguments will warn you that you need a URL. Running that with a URL that isn't a Trello card will warn you that you need a valid URL. Running it in a repo that isn't our `wdi` repo will also warn you that you're not in the right repo.
 
-That's really it. Make sure you're in the WDI folder, it's pretty specifically intended for making new baseline materials.
-
-But hopefully it's a little quicker just to get set up when you need to create a new resource. Booooom.
+That's really it. I just figured the labor of creating branches & folders and manually copy & pasting from Trello & our templates could be probably be done better with a little script.
 
 ## Issues
 
